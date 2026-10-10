@@ -1,0 +1,39 @@
+name: Release Linux ARM AppImage
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release-linux-arm-appimage:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/install-deps
+      - name: Build AppImage arm64
+        run: pnpm dist:linux AppImage --arm64 --publish=never
+      - name: Upload ARM AppImage artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-AppImage-arm64
+          path: |
+            dist/Heroic*arm64.AppImage
+            dist/*arm64.yml
+            dist/*.blockmap
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 3
+      - name: Publish to draft release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME"
+          gh release upload "$GITHUB_REF_NAME" dist/Heroic*arm64.AppImage dist/*arm64.yml dist/*.blockmap --clobber
